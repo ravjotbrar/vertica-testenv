@@ -38,7 +38,7 @@ create_db(){
 
 create_sandbox(){
 	docker build -t vertica/sandbox $SRC/docker/sandbox
-	docker run --network=$NETWORK_NAME -t -d --name=$SANDBOX_NAME vertica/sandbox
+	docker run --network=$NETWORK_NAME --mount type=bind,source="$(pwd)"/spark-connector,target=/connector --mount type=bind,source=/Users/jonathanlouie/.ivy2/cache,target=/root/.ivy2/cache -t -d --name=$SANDBOX_NAME vertica/sandbox
 	docker exec $SANDBOX_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $KDC_NAME) kerberos.example.com >> /etc/hosts"
 	docker exec $SANDBOX_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $DB_NAME) vertica.example.com vertica >> /etc/hosts"
 	docker exec -it $SANDBOX_NAME /bin/bash
