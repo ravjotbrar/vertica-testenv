@@ -16,7 +16,7 @@ create_db(){
 		curl $VERTICA_CE_URL --create-dirs -o $SRC/docker-vertica/packages/vertica-ce.latest.rpm
 	fi
 	docker build -f $SRC/docker-vertica/Dockerfile.centos.7_9.x --build-arg VERTICA_PACKAGE=vertica-ce.latest.rpm -t jbfavre/vertica $SRC/docker-vertica
-	docker run -d -p 5433:5433 --name=$DB_NAME --network=$NETWORK_NAME jbfavre/vertica
+	docker run -d -p 5433:5433 --name=$DB_NAME --mount type=bind,source="$(pwd)"/hdfs-config,target=/etc/hadoop/conf --network=$NETWORK_NAME jbfavre/vertica
 	
 	echo "Making service keytab"
 	export V_PRINC=vertica/vertica.example.com@EXAMPLE.COM
@@ -36,11 +36,36 @@ create_db(){
 	docker exec $DB_NAME /kerberize_db.sh
 }
 
+create_hdfs(){
+	echo "Creating HDFS"
+	docker run -d -i -p 22022:22 -p 8020:8020 -p 50010:50010 -p 50020:50020 -p 50070:50070 -p 50075:50075 --name=$HDFS_NAME --mount type=bind,source="$(pwd)"/hdfs-config,target=/etc/hadoop/conf --network=$NETWORK_NAME mdouchement/hdfs
+	
+	echo "Making service keytab"
+	export V_PRINC=hdfs/hdfs.example.com@EXAMPLE.COM
+	docker exec $KDC_NAME kadmin.local -q "addprinc -randkey $V_PRINC"
+	docker exec $KDC_NAME kadmin.local -q "ktadd -norandkey -k hdfs.keytab $V_PRINC"
+	docker cp $KDC_NAME:hdfs.keytab $SRC
+	docker cp $SRC/hdfs.keytab $HDFS_NAME:/
+	rm $SRC/hdfs.keytab
+
+	echo "Waiting for HDFS to start"
+	sleep 60
+
+	echo "Kerberize HDFS"
+	docker cp $SRC/docker/kerberize_hdfs.sh $HDFS_NAME:/
+        # docker exec $HDFS_NAME export PATH=$PATH:/usr/bin
+
+	docker exec $HDFS_NAME yum install -y krb5-workstation
+	docker exec $HDFS_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $KDC_NAME) kerberos.example.com >> /etc/hosts"
+	docker exec $HDFS_NAME /kerberize_hdfs.sh
+}
+
 create_sandbox(){
 	docker build -t vertica/sandbox $SRC/docker/sandbox
-	docker run --network=$NETWORK_NAME --mount type=bind,source="$(pwd)"/spark-connector,target=/connector --mount type=bind,source=/Users/jonathanlouie/.ivy2/cache,target=/root/.ivy2/cache -t -d --name=$SANDBOX_NAME vertica/sandbox
+	docker run --network=$NETWORK_NAME --mount type=bind,source="$(pwd)"/spark-connector,target=/connector --mount type=bind,source=/Users/jonathanlouie/.ivy2/cache,target=/root/.ivy2/cache --mount type=bind,source="$(pwd)"/hdfs-config,target=/etc/hadoop/conf -t -d --name=$SANDBOX_NAME vertica/sandbox
 	docker exec $SANDBOX_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $KDC_NAME) kerberos.example.com >> /etc/hosts"
 	docker exec $SANDBOX_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $DB_NAME) vertica.example.com vertica >> /etc/hosts"
+	docker exec $SANDBOX_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $HDFS_NAME) hdfs.example.com hdfs >> /etc/hosts"
 	docker exec -it $SANDBOX_NAME /bin/bash
 }
 
@@ -69,6 +94,7 @@ stop_containers(){
 	echo "Stopping containers"
 	docker container stop $KDC_NAME
 	docker container stop $DB_NAME
+	docker container stop $HDFS_NAME
 	docker container stop $SANDBOX_NAME > /dev/null 2>&1
 }
 
@@ -76,8 +102,10 @@ clean_system(){
 	echo "Cleaning up"
 	docker container rm $KDC_NAME
 	docker container rm $DB_NAME
+	docker container rm $HDFS_NAME
 	docker container rm $SANDBOX_NAME > /dev/null 2>&1
 	docker image rm jbfavre/vertica
+	docker image rm mdouchement/hdfs
 	docker image rm vertica/kdc
 	docker image rm vertica/sandbox > /dev/null 2>&1
 	docker network remove $NETWORK_NAME
@@ -112,6 +140,7 @@ fi
 
 KDC_NAME=$USER.kdc
 DB_NAME=$USER.db
+HDFS_NAME=$USER.hdfs
 TESTER_NAME=$USER.test
 NETWORK_NAME=${USER}test
 SANDBOX_NAME=${USER}.sandbox
@@ -145,6 +174,7 @@ done
 if [ $op = 'start' ]; then
 	create_kdc
 	create_db
+	create_hdfs
 elif [ $op = 'sandbox' ]; then
 	create_sandbox
 elif [ $op = 'test' ]; then
