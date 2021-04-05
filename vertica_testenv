@@ -32,6 +32,8 @@ create_db(){
 	echo "Kerberize db"
 	docker cp $SRC/docker/kerberize_db.sh $DB_NAME:/
 	docker exec $DB_NAME yum install -y krb5-workstation
+	docker exec $DB_NAME apt update
+	docker exec $DB_NAME apt install -y curl
 	docker exec $DB_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $KDC_NAME) kerberos.example.com >> /etc/hosts"
 	docker exec $DB_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $HDFS_NAME) hdfs.example.com hdfs >> /etc/hosts"
 	docker exec $DB_NAME /kerberize_db.sh
@@ -58,7 +60,6 @@ create_hdfs(){
 
 	docker exec $HDFS_NAME yum install -y krb5-workstation
 	docker exec $HDFS_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $KDC_NAME) kerberos.example.com >> /etc/hosts"
-	docker exec $HDFS_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $DB_NAME) vertica.example.com vertica >> /etc/hosts"
 	docker exec $HDFS_NAME /kerberize_hdfs.sh
 }
 
@@ -175,8 +176,8 @@ done
 
 if [ $op = 'start' ]; then
 	create_kdc
-	create_db
 	create_hdfs
+	create_db
 elif [ $op = 'sandbox' ]; then
 	create_sandbox
 elif [ $op = 'test' ]; then
