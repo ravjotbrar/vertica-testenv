@@ -37,35 +37,59 @@ create_db(){
 	docker exec $DB_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $KDC_NAME) kerberos.example.com >> /etc/hosts"
 	docker exec $DB_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $HDFS_NAME) hdfs.example.com hdfs >> /etc/hosts"
 	docker exec $DB_NAME /kerberize_db.sh
+
+        docker exec $DB_NAME mkdir -p /etc/pki/tls/certs/
+        docker exec $DB_NAME cp /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt 
+        docker exec $DB_NAME bash -c "cat /etc/hadoop/conf/hdfs.cert >> /etc/pki/tls/certs/ca-bundle.crt"
 }
 
 create_hdfs(){
 	echo "Creating HDFS"
-	docker run -d -i -p 22022:22 -p 8020:8020 -p 50010:50010 -p 50020:50020 -p 50070:50070 -p 50075:50075 --name=$HDFS_NAME --mount type=bind,source="$(pwd)"/hdfs-config,target=/etc/hadoop/conf --network=$NETWORK_NAME mdouchement/hdfs
+	docker run -d -i -p 22022:22 -p 8020:8020 -p 50010:50010 -p 50020:50020 -p 50070:50070 -p 50075:50075 -p 8088:8088 --name=$HDFS_NAME --mount type=bind,source="$(pwd)"/hdfs-config,target=/etc/hadoop/conf --network=$NETWORK_NAME mdouchement/hdfs
 	
 	echo "Making service keytab"
-	export V_PRINC=hdfs/hdfs.example.com@EXAMPLE.COM
+	export V_PRINC=root/hdfs.example.com@EXAMPLE.COM
+	export V_PRINC_H=HTTP/hdfs.example.com@EXAMPLE.COM
 	docker exec $KDC_NAME kadmin.local -q "addprinc -randkey $V_PRINC"
-	docker exec $KDC_NAME kadmin.local -q "ktadd -norandkey -k hdfs.keytab $V_PRINC"
+	docker exec $KDC_NAME kadmin.local -q "addprinc -randkey $V_PRINC_H"
+	docker exec $KDC_NAME kadmin.local -q "ktadd -norandkey -k hdfs.keytab $V_PRINC $V_PRINC_H"
+
 	docker cp $KDC_NAME:hdfs.keytab $SRC
-	docker cp $SRC/hdfs.keytab $HDFS_NAME:/
+	docker cp $SRC/hdfs.keytab $HDFS_NAME:/root/.keytab
 	rm $SRC/hdfs.keytab
 
 	echo "Waiting for HDFS to start"
 	sleep 60
 
+        docker exec $HDFS_NAME cp /etc/hadoop/conf/core-site.xml /opt/hadoop/etc/hadoop/core-site.xml  
+        docker exec $HDFS_NAME cp /etc/hadoop/conf/hdfs-site.xml /opt/hadoop/etc/hadoop/hdfs-site.xml  
+        docker exec $HDFS_NAME cp /etc/hadoop/conf/ssl-server.xml /opt/hadoop/etc/hadoop/ssl-server.xml  
+        docker exec $HDFS_NAME cp /etc/hadoop/conf/keystore /root/.keystore
+        
 	echo "Kerberize HDFS"
 	docker cp $SRC/docker/kerberize_hdfs.sh $HDFS_NAME:/
         # docker exec $HDFS_NAME export PATH=$PATH:/usr/bin
 
 	docker exec $HDFS_NAME yum install -y krb5-workstation
+
+        docker exec $HDFS_NAME /bin/sh -c "sed '/172.20.0.3/d' /etc/hosts > /etc/hosts2"
+        docker exec $HDFS_NAME /bin/sh -c "cat /etc/hosts2 > /etc/hosts"
 	docker exec $HDFS_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $KDC_NAME) kerberos.example.com >> /etc/hosts"
-	docker exec $HDFS_NAME /kerberize_hdfs.sh
+	docker exec $HDFS_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $HDFS_NAME) hdfs.example.com hdfs >> /etc/hosts"
+
+	docker exec $HDFS_NAME /bin/sh /kerberize_hdfs.sh
+
+	docker exec $KDC_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $HDFS_NAME) hdfs.example.com hdfs >> /etc/hosts"
+
+	echo "Restarting HDFS with proper config"
+        docker exec $HDFS_NAME stop-dfs.sh
+        docker exec $HDFS_NAME start-dfs.sh
+
 }
 
 create_sandbox(){
 	docker build -t vertica/sandbox $SRC/docker/sandbox
-	docker run --network=$NETWORK_NAME --mount type=bind,source="$(pwd)"/spark-connector,target=/connector --mount type=bind,source=/Users/jonathanlouie/.ivy2/cache,target=/root/.ivy2/cache --mount type=bind,source="$(pwd)"/hdfs-config,target=/etc/hadoop/conf -t -d --name=$SANDBOX_NAME vertica/sandbox
+	docker run --network=$NETWORK_NAME --mount type=bind,source="$(pwd)"/spark-connector,target=/connector --mount type=bind,source=/Users/alexrehnbymartin/.ivy2/cache,target=/root/.ivy2/cache --mount type=bind,source="$(pwd)"/hdfs-config,target=/etc/hadoop/conf -t -d --name=$SANDBOX_NAME vertica/sandbox
 	docker exec $SANDBOX_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $KDC_NAME) kerberos.example.com >> /etc/hosts"
 	docker exec $SANDBOX_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $DB_NAME) vertica.example.com vertica >> /etc/hosts"
 	docker exec $SANDBOX_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $HDFS_NAME) hdfs.example.com hdfs >> /etc/hosts"
