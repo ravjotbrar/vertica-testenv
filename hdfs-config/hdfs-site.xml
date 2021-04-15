@@ -10,8 +10,13 @@
     </property>
 
     <property>
+      <name>dfs.webhdfs.enabled</name>
+      <value>true</value>
+    </property>
+
+    <property>
       <name>dfs.secondary.http.address</name>
-      <value>hdfs:50090</value>
+      <value>hdfs.example.com:50090</value>
       <description>
         The secondary namenode http server address and port.
         If the port is 0 then the server will start on a free port.
@@ -20,7 +25,7 @@
 
     <property>
       <name>dfs.datanode.address</name>
-      <value>hdfs:50010</value>
+      <value>hdfs.example.com:50010</value>
       <description>
         The address where the datanode server will listen to.
         If the port is 0 then the server will start on a free port.
@@ -29,7 +34,7 @@
 
     <property>
       <name>dfs.datanode.http.address</name>
-      <value>hdfs:50075</value>
+      <value>hdfs.example.com:50075</value>
       <description>
         The datanode http server address and port.
         If the port is 0 then the server will start on a free port.
@@ -37,17 +42,27 @@
     </property>
 
     <property>
-      <name>dfs.datanode.ipc.address</name>
-      <value>hdfs:50020</value>
+      <name>dfs.data.transfer.protection</name>
+      <value>authentication</value>
+    </property>
+
+    <property>
+      <name>dfs.http.policy</name>
+      <value>HTTPS_ONLY</value>
+    </property>
+
+    <property>
+      <name>dfs.http.address</name>
+      <value>hdfs.example.com:50070</value>
       <description>
-        The datanode ipc server address and port.
+        The address and the base port where the dfs namenode web ui will listen on.
         If the port is 0 then the server will start on a free port.
       </description>
     </property>
 
     <property>
-      <name>dfs.http.address</name>
-      <value>hdfs:50070</value>
+      <name>dfs.namenode.https-address</name>
+      <value>hdfs.example.com:50070</value>
       <description>
         The address and the base port where the dfs namenode web ui will listen on.
         If the port is 0 then the server will start on a free port.
@@ -115,6 +130,46 @@
     </property>
 
     <property>
+      <name>dfs.datanode.data.dir.perm</name>
+      <value>700</value>
+    </property>
+
+    <property>
+      <name>dfs.namenode.kerberos.principal</name>
+      <value>root/hdfs.example.com@EXAMPLE.COM</value>
+    </property>
+
+    <property>
+      <name>dfs.namenode.keytab.file</name>
+      <value>/root/.keytab</value>
+    </property>
+
+    <property>
+      <name>dfs.web.authentication.kerberos.principal</name>
+      <value>root/hdfs.example.com@EXAMPLE.COM</value>
+    </property>
+
+    <property>
+      <name>dfs.web.authentication.keytab.file</name>
+      <value>/root/.keytab</value>
+    </property>
+
+    <property>
+      <name>dfs.datanode.kerberos.principal</name>
+      <value>root/hdfs.example.com@EXAMPLE.COM</value>
+    </property>
+
+    <property>
+      <name>dfs.datanode.keytab.file</name>
+      <value>/root/.keytab</value>
+    </property>
+
+    <property>
+      <name>dfs.block.access.token.enable</name>
+      <value>true</value>
+    </property>
+
+    <property>
       <name>dfs.nfs3.dump.dir</name>
       <value>/data/hdfs-nfs/</value>
     </property>
@@ -133,4 +188,5 @@
         <name>dfs.datanode.use.datanode.hostname</name>
         <value>true</value>
     </property>
+
 </configuration>
