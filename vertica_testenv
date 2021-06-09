@@ -72,7 +72,7 @@ create_hdfs(){
 
 	docker exec $HDFS_NAME yum install -y krb5-workstation
 
-        docker exec $HDFS_NAME /bin/sh -c "sed '/172.20.0.3/d' /etc/hosts > /etc/hosts2"
+	docker exec $HDFS_NAME /bin/sh -c "echo /$(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $HDFS_NAME)/d | sed /etc/hostsi > /etc/hosts2"
         docker exec $HDFS_NAME /bin/sh -c "cat /etc/hosts2 > /etc/hosts"
 	docker exec $HDFS_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $KDC_NAME) kerberos.example.com >> /etc/hosts"
 	docker exec $HDFS_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $HDFS_NAME) hdfs.example.com hdfs >> /etc/hosts"
@@ -89,7 +89,7 @@ create_hdfs(){
 
 create_sandbox(){
 	docker build -t vertica/sandbox $SRC/docker/sandbox
-	docker run --network=$NETWORK_NAME --mount type=bind,source="$(pwd)"/spark-connector,target=/connector --mount type=bind,source=/Users/alexrehnbymartin/.ivy2/cache,target=/root/.ivy2/cache --mount type=bind,source="$(pwd)"/hdfs-config,target=/etc/hadoop/conf -t -d --name=$SANDBOX_NAME vertica/sandbox
+	docker run --network=$NETWORK_NAME --mount type=bind,source="$(pwd)"/spark-connector,target=/connector --mount type=bind,source="$(pwd)"/hdfs-config,target=/etc/hadoop/conf -t -d --name=$SANDBOX_NAME vertica/sandbox
 	docker exec $SANDBOX_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $KDC_NAME) kerberos.example.com >> /etc/hosts"
 	docker exec $SANDBOX_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $DB_NAME) vertica.example.com vertica >> /etc/hosts"
 	docker exec $SANDBOX_NAME /bin/sh -c "echo $(docker inspect -f "{{.NetworkSettings.Networks.$NETWORK_NAME.IPAddress }}" $HDFS_NAME) hdfs.example.com hdfs >> /etc/hosts"
