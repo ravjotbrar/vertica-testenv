@@ -5,8 +5,9 @@ ENV JAVA_OPTS="$JAVA_OPTS -Djava.security.auth.login.config=/connector/conf/jaas
 RUN yum install -y java-11-openjdk && \
     yum install -y epel-release && \
     yum update -y && yum install -y wget && \
-    wget http://dl.bintray.com/sbt/rpm/sbt-$SBT_VERSION.rpm && \
-    yum install -y sbt-$SBT_VERSION.rpm
+    curl -L https://www.scala-sbt.org/sbt-rpm.repo > sbt-rpm.repo && \
+    mv sbt-rpm.repo /etc/yum.repos.d/ && \
+    yum -y install sbt
 
 RUN yum install -y krb5-workstation
 COPY . /sandbox
